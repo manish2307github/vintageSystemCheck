@@ -122,6 +122,7 @@ The root Node.js prototype has separate tests. Run `npm test` from the repositor
 
 ## Repository notes
 
+- Source repository: [github.com/manish2307github/vintageSystemCheck](https://github.com/manish2307github/vintageSystemCheck).
 - `docs/architecture.md` records risk assumptions, thresholds, workflow, and tradeoffs.
 - `backend/data/weekly_usage.csv` contains synthetic usage histories for 16 demo accounts, not data from 16 real companies. The histories exercise different patterns, risk-band boundaries, and data-quality cases, but every account is scored using the same rules and thresholds; there are no company-specific parameters. This is demo and test data, not labeled churn training data or evidence of predictive accuracy.
 - The root `src/` and `test/` directories contain a pre-existing Node.js prototype. It uses `data/seed.json`, Compose does not run it, and its scoring rules differ from the Python service.
