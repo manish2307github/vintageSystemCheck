@@ -1,6 +1,8 @@
 from backend.app.models import AccountUsage, RiskLevel, RiskScore
 
-MINIMUM_HISTORY = 8
+MINIMUM_HISTORY = 39  # 9 months of weekly data
+PRIOR_WINDOW = 35  # 8 months for prior average
+RECENT_WINDOW = 4  # 1 month for recent average
 
 
 def score_account(account: AccountUsage) -> RiskScore:
@@ -23,8 +25,8 @@ def score_account(account: AccountUsage) -> RiskScore:
         )
 
     window = values[-MINIMUM_HISTORY:]
-    previous_average = sum(window[:4]) / 4
-    recent_average = sum(window[4:]) / 4
+    previous_average = sum(window[:PRIOR_WINDOW]) / PRIOR_WINDOW
+    recent_average = sum(window[PRIOR_WINDOW:]) / RECENT_WINDOW
     decline_percent = (
         ((previous_average - recent_average) / previous_average) * 100
         if previous_average > 0 else 0.0

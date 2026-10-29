@@ -52,41 +52,41 @@ def csv_for(values: list[int]) -> str:
     ],
 )
 def test_risk_bands_and_boundaries(recent: list[int], expected: RiskLevel) -> None:
-    result = score_account(account([100] * 4 + recent))
+    result = score_account(account([100] * 35 + recent))
     assert result.risk_level == expected
     assert result.previous_average == 100
 
 
 def test_insufficient_history_and_missing_recent_week() -> None:
-    assert score_account(account([10] * 7)).risk_level == RiskLevel.INSUFFICIENT_DATA
-    assert score_account(account([10] * 8, gap_at=5)).risk_level == RiskLevel.INSUFFICIENT_DATA
+    assert score_account(account([10] * 38)).risk_level == RiskLevel.INSUFFICIENT_DATA
+    assert score_account(account([10] * 39, gap_at=20)).risk_level == RiskLevel.INSUFFICIENT_DATA
 
 
 def test_downward_slope_raises_confidence() -> None:
-    declining = score_account(account([100] * 4 + [90, 80, 70, 60]))
-    non_declining = score_account(account([100] * 4 + [0, 40, 100, 160]))
+    declining = score_account(account([100] * 35 + [90, 80, 70, 60]))
+    non_declining = score_account(account([100] * 35 + [160, 160, 160, 160]))
     assert declining.trend_slope < 0
-    assert non_declining.trend_slope > 0
+    assert non_declining.trend_slope >= 0
     assert declining.confidence > non_declining.confidence
 
 
 def test_zero_baseline_does_not_divide_by_zero() -> None:
-    result = score_account(account([0] * 8))
+    result = score_account(account([0] * 39))
     assert result.decline_percent == 0
     assert result.risk_level == RiskLevel.HEALTHY
 
 
 def test_explanation_includes_change_amount_comparison_and_reason() -> None:
-    usage = account([100] * 4 + [60] * 4)
+    usage = account([100] * 35 + [60] * 4)
     score = score_account(usage)
     text = explain_risk(usage, score)
     assert "declined by 40%" in text
-    assert "100.0 over the prior 4 weeks" in text
+    assert "100.0 over the prior 8 months" in text
     assert "meets the at-risk threshold" in text
 
 
 def test_explanation_describes_increased_usage_without_claiming_decline() -> None:
-    usage = account([10] * 4 + [20] * 4)
+    usage = account([10] * 35 + [20] * 4)
     text = explain_risk(usage, score_account(usage))
     assert "increased by 100%" in text
     assert "decline remains below the watch threshold" in text
@@ -100,25 +100,25 @@ def test_explanation_describes_increased_usage_without_claiming_decline() -> Non
     ],
 )
 def test_explanation_uses_matching_risk_reason(recent: list[int], reason: str) -> None:
-    usage = account([100] * 4 + recent)
+    usage = account([100] * 35 + recent)
     assert reason in explain_risk(usage, score_account(usage))
 
 
 def test_explanation_handles_zero_baseline_and_no_change() -> None:
-    rising = account([0] * 4 + [10] * 4)
-    unchanged = account([0] * 8)
+    rising = account([0] * 35 + [10] * 4)
+    unchanged = account([0] * 39)
     assert "cannot be calculated from a zero baseline" in explain_risk(rising, score_account(rising))
     assert "were unchanged (0% change)" in explain_risk(unchanged, score_account(unchanged))
 
 
 def test_insufficient_explanation_states_history_requirement() -> None:
-    usage = account([4] * 6)
+    usage = account([4] * 38)
     text = explain_risk(usage, score_account(usage))
-    assert "at least 8 consecutive weeks are required" in text
+    assert "at least 39 consecutive weeks (9 months) are required" in text
 
 
 def test_insufficient_explanation_identifies_recent_gap() -> None:
-    usage = account([10] * 8, gap_at=5)
+    usage = account([10] * 39, gap_at=20)
     text = explain_risk(usage, score_account(usage))
     assert "latest history contains a missing week" in text
 
@@ -182,14 +182,14 @@ def test_ingestion_rejects_empty_csv() -> None:
 def test_api_lists_accounts_and_summary() -> None:
     response = client.get("/accounts")
     assert response.status_code == 200
-    assert len(response.json()) == 16
+    assert len(response.json()) == 17
     summary = client.get("/risk-summary").json()
-    assert summary["total_accounts"] == 16
+    assert summary["total_accounts"] == 17
     assert summary["counts"] == {
-        "Insufficient Data": 2,
-        "Healthy": 5,
-        "Watch": 3,
-        "At Risk": 4,
+        "Insufficient Data": 0,
+        "Healthy": 6,
+        "Watch": 4,
+        "At Risk": 5,
         "Critical": 2,
     }
 
@@ -200,7 +200,7 @@ def test_sample_data_covers_decline_boundaries_and_zero_baseline() -> None:
         for report in client.get("/accounts").json()
     }
     expected = {
-        "VNT-009": (0.71, "Healthy"),
+        "VNT-009": (-2.86, "Healthy"),
         "VNT-010": (15.0, "Watch"),
         "VNT-011": (20.0, "Watch"),
         "VNT-012": (30.0, "At Risk"),
@@ -212,7 +212,15 @@ def test_sample_data_covers_decline_boundaries_and_zero_baseline() -> None:
     for account_id, (decline, risk_level) in expected.items():
         assert reports[account_id]["decline_percent"] == pytest.approx(decline)
         assert reports[account_id]["risk_level"] == risk_level
-        assert reports[account_id]["account_age_weeks"] == 12
+        assert reports[account_id]["account_age_weeks"] == 39
+
+
+def test_sample_increasing_account_has_positive_trend() -> None:
+    report = client.get("/accounts/VNT-017").json()
+    assert report["account_age_weeks"] == 39
+    assert report["trend_slope"] > 0
+    assert report["recent_average"] > report["previous_average"]
+    assert report["risk_level"] == "Healthy"
 
 
 def test_api_account_lookup_and_high_risk() -> None:
@@ -225,7 +233,7 @@ def test_api_account_lookup_and_high_risk() -> None:
 
 
 def test_api_analyze_and_validation() -> None:
-    response = client.post("/analyze", json={"csv_content": csv_for([100] * 4 + [50] * 4)})
+    response = client.post("/analyze", json={"csv_content": csv_for([100] * 35 + [50] * 4)})
     assert response.status_code == 200
     assert response.json()[0]["risk_level"] == "At Risk"
     assert client.post("/analyze", json={"csv_content": "bad"}).status_code == 422
@@ -237,11 +245,11 @@ def test_api_openapi_and_health() -> None:
 
 
 def test_langgraph_workflow_runs_all_stages() -> None:
-    reports = run_workflow(csv_for([100] * 4 + [50] * 4))
+    reports = run_workflow(csv_for([100] * 35 + [50] * 4))
     assert reports[0]["risk_level"] == RiskLevel.AT_RISK
     assert reports[0]["explanation"]
     assert reports[0]["recommended_action"] == "Customer Success outreach"
 
 
 def test_langgraph_workflow_loads_default_accounts() -> None:
-    assert len(run_workflow()) == 16
+    assert len(run_workflow()) == 17

@@ -72,6 +72,15 @@ def build_workflow():
 workflow = build_workflow()
 
 
-def run_workflow(csv_content: str | None = None) -> list[dict]:
-    result = workflow.invoke({"csv_content": csv_content} if csv_content is not None else {})
+def run_workflow(
+    csv_content: str | None = None,
+    accounts: list[dict] | None = None,
+) -> list[dict]:
+    if csv_content is not None:
+        inputs = {"csv_content": csv_content}
+    elif accounts is not None:
+        inputs = {"accounts": accounts}
+    else:
+        inputs = {}
+    result = workflow.invoke(inputs)
     return result["reports"]

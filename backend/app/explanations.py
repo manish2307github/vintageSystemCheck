@@ -3,19 +3,19 @@ from backend.app.models import AccountUsage, RiskLevel, RiskScore
 
 def explain_risk(account: AccountUsage, score: RiskScore) -> str:
     if score.risk_level == RiskLevel.INSUFFICIENT_DATA:
-        history = account.weekly_logins[-8:]
-        has_gap = len(history) == 8 and any(
+        history = account.weekly_logins[-39:]
+        has_gap = len(history) == 39 and any(
             (current.week_start - previous.week_start).days != 7
             for previous, current in zip(history, history[1:])
         )
         if has_gap:
             return (
-                "The latest history contains a missing week; at least 8 consecutive "
-                "weeks are required, so no risk level was assigned."
+                "The latest history contains a missing week; at least 39 consecutive "
+                "weeks (9 months) are required, so no risk level was assigned."
             )
         return (
             f"Only {len(account.weekly_logins)} weekly login observations are available; "
-            "at least 8 consecutive weeks are required, so no risk level was assigned."
+            "at least 39 consecutive weeks (9 months) are required, so no risk level was assigned."
         )
 
     decline = score.decline_percent or 0
@@ -48,7 +48,7 @@ def explain_risk(account: AccountUsage, score: RiskScore) -> str:
         else "The decline remains below the watch threshold."
     )
     return (
-        f"{change}, from {score.previous_average:.1f} over the prior 4 weeks "
-        f"to {score.recent_average:.1f} over the latest 4 weeks. "
+        f"{change}, from {score.previous_average:.1f} over the prior 8 months "
+        f"to {score.recent_average:.1f} over the latest 1 month. "
         f"{reason} {trend}"
     )
